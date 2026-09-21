@@ -1,0 +1,163 @@
+{
+  "name": "Pokemon Survival Quiz Evaluator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pokemon-quiz-result",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Webhook Entrenador",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "pokemon-quiz-result"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo 1: Validación y sanitización del resultado de supervivencia\nconst item = $input.first().json.body || $input.first().json;\n\nconst playerId = item.playerId ? String(item.playerId).trim() : 'usr-anon';\nconst playerName = item.playerName ? String(item.playerName).trim() : 'Entrenador Anónimo';\nconst difficulty = item.difficulty ? String(item.difficulty).toLowerCase() : 'principiante';\nconst generation = Number(item.generation) || 1;\nconst score = Number(item.score) || 0;\nconst questionsAnswered = Number(item.questionsAnswered) || 0;\nconst correctAnswers = Number(item.correctAnswers) || 0;\nconst incorrectAnswers = Number(item.incorrectAnswers) || 0;\nconst bestStreak = Number(item.bestStreak) || 0;\nconst hintsUsed = Number(item.hintsUsed) || 0;\nconst isNewRecord = Boolean(item.isNewRecord);\n\nconst isValid = Boolean(item && typeof score === 'number');\n\nreturn [{\n  json: {\n    isValid,\n    playerId,\n    playerName,\n    difficulty,\n    generation,\n    score,\n    questionsAnswered,\n    correctAnswers,\n    incorrectAnswers,\n    bestStreak,\n    hintsUsed,\n    isNewRecord,\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Validar Datos de Supervivencia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo 2: Cálculo de rango, medalla de supervivencia y honores de la Liga\nconst data = $input.first().json;\nconst totalQ = data.questionsAnswered || (data.correctAnswers + data.incorrectAnswers) || 1;\nconst accuracy = Math.round((data.correctAnswers / totalQ) * 100);\n\nlet badge = 'Medalla de Supervivencia Principiante';\nlet rank = 'Entrenador Promesa';\n\nif (data.isNewRecord || data.score >= 600) {\n  badge = 'Medalla Campeón Supremo de la Liga';\n  rank = 'Maestro de la Supervivencia Pokémon';\n} else if (data.score >= 350) {\n  badge = 'Medalla Gimnasio Élite';\n  rank = 'Líder de Supervivencia';\n} else {\n  badge = 'Medalla Pokéball de Entrenamiento';\n  rank = 'Aspirante en Práctica';\n}\n\nreturn [{\n  json: {\n    ...data,\n    accuracy,\n    badge,\n    rank\n  }\n}];"
+      },
+      "id": "33333333-3333-3333-3333-333333333333",
+      "name": "Procesar Rango y Récord",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValid }}",
+              "value2": true
+            },
+            {
+              "value1": "={{ $json.score >= 200 || $json.isNewRecord === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "44444444-4444-4444-4444-444444444444",
+      "name": "¿Superó el Desafío?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"victoria_supervivencia\",\n  \"certified\": true,\n  \"message\": \"¡Enhorabuena \" + $json.playerName + \"! Certificación oficial de la Liga Pokémon completada con éxito.\",\n  \"playerName\": $json.playerName,\n  \"rank\": $json.rank,\n  \"badge\": $json.badge,\n  \"score\": $json.score,\n  \"bestStreak\": $json.bestStreak,\n  \"isNewRecord\": $json.isNewRecord,\n  \"certifiedAt\": $json.receivedAt\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "55555555-5555-5555-5555-555555555555",
+      "name": "Respuesta Certificada Aprobado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"entrenamiento\",\n  \"certified\": false,\n  \"message\": \"¡Buen intento de supervivencia! Sigue practicando en la arena para batir tu récord.\",\n  \"playerName\": $json.playerName,\n  \"rank\": $json.rank,\n  \"badge\": $json.badge,\n  \"score\": $json.score,\n  \"bestStreak\": $json.bestStreak,\n  \"isNewRecord\": false,\n  \"certifiedAt\": $json.receivedAt\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "66666666-6666-6666-6666-666666666666",
+      "name": "Respuesta Reintento",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrenador": {
+      "main": [
+        [
+          {
+            "node": "Validar Datos de Supervivencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Datos de Supervivencia": {
+      "main": [
+        [
+          {
+            "node": "Procesar Rango y Récord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Rango y Récord": {
+      "main": [
+        [
+          {
+            "node": "¿Superó el Desafío?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Superó el Desafío?": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Certificada Aprobado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Reintento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
