@@ -1812,6 +1812,34 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.n8n-cert-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 0.5rem 1.15rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.n8n-cert-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.n8n-cert-badge-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.n8n-cert-rank-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 .game-over-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

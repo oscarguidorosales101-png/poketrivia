@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skull, Trophy, RotateCcw, Home, Sparkles, CheckCircle2, XCircle, HelpCircle, Flame } from 'lucide-react';
+import { Skull, Trophy, RotateCcw, Home, Sparkles, CheckCircle2, XCircle, HelpCircle, Flame, Award } from 'lucide-react';
 
 export const GameOverModal = ({
   score = 0,
@@ -10,6 +10,7 @@ export const GameOverModal = ({
   hintsUsed = 0,
   currentRecord = 0,
   isNewRecord = false,
+  n8nCertification = null,
   onPlayAgain,
   onReturnMenu,
   onViewResults
@@ -31,6 +32,17 @@ export const GameOverModal = ({
             <Sparkles size={20} />
             <span>¡NUEVO RÉCORD CONSEGUIDO!</span>
             <Sparkles size={20} />
+          </div>
+        )}
+
+        {/* Certificación oficial n8n si el flujo la devolvió */}
+        {n8nCertification && (n8nCertification.badge || n8nCertification.rank) && (
+          <div className="n8n-cert-banner">
+            <Award size={18} className="icon-gold" />
+            <div className="n8n-cert-info">
+              <span className="n8n-cert-badge-text">{n8nCertification.badge || 'Certificación Liga Pokémon'}</span>
+              <span className="n8n-cert-rank-text">{n8nCertification.rank}</span>
+            </div>
           </div>
         )}
 

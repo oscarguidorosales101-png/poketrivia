@@ -9,7 +9,6 @@ import {
 import { useGameTimer } from '../hooks/useGameTimer';
 import { useAuth } from '../hooks/useAuth';
 import { saveScore, checkAndUpdateRecord, getRecords } from '../services/scoreService';
-import { sendGameResultToN8N } from '../services/n8nService';
 import { updateUserHints, recordUserMatchStats } from '../services/authService';
 import { AlertTriangle } from 'lucide-react';
 
@@ -61,6 +60,7 @@ export const Game = () => {
   const [isNewRecordAchieved, setIsNewRecordAchieved] = useState(false);
   const [difficultyHighScore, setDifficultyHighScore] = useState(0);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const [n8nCertification, setN8nCertification] = useState(null);
 
   const isPrefetchingRef = useRef(false);
   const hasEndedRef = useRef(false);
@@ -69,17 +69,12 @@ export const Game = () => {
   const currentQuestion = questions[currentQuestionIndex] || null;
   const currentQuestionNumber = currentQuestionIndex + 1;
 
-  // Cargar el récord actual de esta dificultad para este usuario
+  // Cargar el récord de la dificultad actualmente jugada
   useEffect(() => {
-    const personal = user?.records?.[currentLevelConfig.recordKey];
-    if (personal !== undefined && personal !== null) {
-      setDifficultyHighScore(Number(personal) || 0);
-    } else {
-      getRecords().then((rec) => {
-        setDifficultyHighScore(Number(rec[currentLevelConfig.recordKey]) || 0);
-      });
-    }
-  }, [currentLevelConfig.recordKey, user?.records]);
+    getRecords().then((rec) => {
+      setDifficultyHighScore(Number(rec?.[currentLevelConfig.recordKey]) || 0);
+    });
+  }, [currentLevelConfig.recordKey]);
 
   // ==========================================
   // MANEJO DE TIEMPO AGOTADO
@@ -169,42 +164,44 @@ export const Game = () => {
     hasEndedRef.current = true;
     stopTimer();
 
-    // 1. Comprobar y actualizar récord independiente del jugador y global
-    const personalRecord = Number(user?.records?.[currentLevelConfig.recordKey]) || 0;
-    const isNewPersonalRecord = score > personalRecord;
+    // 1. Comprobar y actualizar récord de la dificultad actualmente jugada
     const recordResult = await checkAndUpdateRecord(currentLevelConfig.recordKey, score);
-    const achievedNewRecord = isNewPersonalRecord || recordResult.isNewRecord;
+    const achievedNewRecord = Boolean(recordResult.isNewRecord);
 
     setIsNewRecordAchieved(achievedNewRecord);
-    setDifficultyHighScore(Math.max(personalRecord, score));
+    setDifficultyHighScore(recordResult.currentHigh);
 
-    // 2. Guardar en db.json mediante POST
+    // 2. Guardar en db.json mediante POST y transmitir automáticamente a n8n
     const matchPayload = {
       playerId: user?.id || 'usr-player',
+      username: user?.username || user?.name || 'entrenador',
       playerName: user?.name || user?.username || 'Entrenador',
       difficulty: levelKey,
       difficultyKey: currentLevelConfig.recordKey,
       generation: currentLevelConfig.generation,
       score,
-      questionsAnswered: currentQuestionNumber,
+      questionsAnswered: correctAnswersCount + incorrectAnswersCount,
       correctAnswers: correctAnswersCount,
-      incorrectAnswers: incorrectAnswersCount + (lives === 0 ? 1 : 0),
+      incorrectAnswers: incorrectAnswersCount,
       bestStreak,
       hintsUsed: totalHintsUsedInMatch,
       remainingLives: 0,
       isNewRecord: achievedNewRecord,
+      subscription: typeof user?.subscription === 'object' && user?.subscription !== null
+        ? (user.subscription.type || 'free').toLowerCase()
+        : String(user?.subscription || 'free').toLowerCase(),
       date: new Date().toISOString()
     };
 
-    saveScore(matchPayload);
+    const saveResult = await saveScore(matchPayload);
+    if (saveResult?.n8n?.data) {
+      setN8nCertification(saveResult.n8n.data);
+    }
 
     // Acumular estadísticas al perfil del jugador
     if (user?.id) {
       recordUserMatchStats(user.id, matchPayload);
     }
-
-    // 3. Comunicar con n8n
-    sendGameResultToN8N(matchPayload);
 
     setIsGameOver(true);
   }, [
@@ -409,32 +406,34 @@ export const Game = () => {
     // 1. Comprobar récord si aplica
     const recordResult = await checkAndUpdateRecord(currentLevelConfig.recordKey, score);
 
-    // 2. Guardar partida en db.json
+    // 2. Guardar partida en db.json y despachar a n8n
     const matchPayload = {
       playerId: user?.id || 'usr-player',
+      username: user?.username || user?.name || 'entrenador',
       playerName: user?.name || user?.username || 'Entrenador',
       difficulty: levelKey,
+      difficultyKey: currentLevelConfig.recordKey,
       generation: currentLevelConfig.generation,
       score,
-      questionsAnswered: currentQuestionNumber,
+      questionsAnswered: correctAnswersCount + incorrectAnswersCount,
       correctAnswers: correctAnswersCount,
       incorrectAnswers: incorrectAnswersCount,
       bestStreak,
       hintsUsed: totalHintsUsedInMatch,
       remainingLives: lives,
       isNewRecord: recordResult.isNewRecord,
+      subscription: typeof user?.subscription === 'object' && user?.subscription !== null
+        ? (user.subscription.type || 'free').toLowerCase()
+        : String(user?.subscription || 'free').toLowerCase(),
       date: new Date().toISOString()
     };
 
-    saveScore(matchPayload);
+    await saveScore(matchPayload);
 
     // 3. Acumular estadísticas al perfil del jugador
     if (user?.id) {
       recordUserMatchStats(user.id, matchPayload);
     }
-
-    // 4. Enviar a n8n
-    sendGameResultToN8N(matchPayload);
 
     navigate('/jugador');
   };
@@ -493,12 +492,13 @@ export const Game = () => {
         <GameOverModal
           score={score}
           bestStreak={bestStreak}
-          questionsAnswered={currentQuestionNumber}
+          questionsAnswered={correctAnswersCount + incorrectAnswersCount}
           correctAnswers={correctAnswersCount}
           incorrectAnswers={incorrectAnswersCount}
           hintsUsed={totalHintsUsedInMatch}
           currentRecord={difficultyHighScore}
           isNewRecord={isNewRecordAchieved}
+          n8nCertification={n8nCertification}
           onPlayAgain={handlePlayAgain}
           onReturnMenu={handleReturnMenu}
           onViewResults={handleViewResults}

@@ -1,3 +1,5 @@
+import { sendGameResultToN8N } from './n8nService.js';
+
 const API_BASE = 'http://localhost:3001';
 const API_SCORES_URL = `${API_BASE}/scores`;
 const API_RECORDS_URL = `${API_BASE}/records`;
@@ -92,12 +94,13 @@ export const getRecords = async () => {
 export const checkAndUpdateRecord = async (recordKey, newScore) => {
   const currentRecords = await getRecords();
   const previousHigh = Number(currentRecords[recordKey]) || 0;
-  const isNewRecord = newScore > previousHigh;
+  const numScore = Number(newScore) || 0;
+  const isNewRecord = numScore > 0 && numScore > previousHigh;
 
   if (isNewRecord) {
     const updated = {
       ...currentRecords,
-      [recordKey]: newScore
+      [recordKey]: numScore
     };
     localStorage.setItem(LOCAL_STORAGE_RECORDS_KEY, JSON.stringify(updated));
 
@@ -109,7 +112,7 @@ export const checkAndUpdateRecord = async (recordKey, newScore) => {
       });
     } catch {}
 
-    return { isNewRecord: true, previousHigh, currentHigh: newScore };
+    return { isNewRecord: true, previousHigh, currentHigh: numScore };
   }
 
   return { isNewRecord: false, previousHigh, currentHigh: previousHigh };
@@ -162,25 +165,31 @@ export const getPlayerScores = async (playerId) => {
 
 /**
  * Guarda una partida de supervivencia mediante operación POST real en json-server
+ * y despacha automáticamente el resultado al webhook de n8n de forma desacoplada y tolerante a fallos.
  */
 export const saveScore = async (matchPayload) => {
   const newScore = {
     id: Date.now().toString(),
     playerId: matchPayload.playerId || 'usr-anon',
-    playerName: matchPayload.playerName?.trim() || 'Entrenador Anónimo',
+    username: matchPayload.username || matchPayload.playerName?.trim() || 'entrenador',
+    playerName: matchPayload.playerName?.trim() || matchPayload.username || 'Entrenador Anónimo',
     difficulty: matchPayload.difficulty || matchPayload.level || 'principiante',
     generation: Number(matchPayload.generation) || 1,
     score: Number(matchPayload.score) || 0,
-    questionsAnswered: Number(matchPayload.questionsAnswered) || 0,
+    questionsAnswered: Number(matchPayload.questionsAnswered) || (Number(matchPayload.correctAnswers) + Number(matchPayload.incorrectAnswers)) || 0,
     correctAnswers: Number(matchPayload.correctAnswers) || 0,
     incorrectAnswers: Number(matchPayload.incorrectAnswers) || 0,
     bestStreak: Number(matchPayload.bestStreak) || 0,
     hintsUsed: Number(matchPayload.hintsUsed) || 0,
     remainingLives: Number(matchPayload.remainingLives) || 0,
     isNewRecord: Boolean(matchPayload.isNewRecord),
-    date: new Date().toISOString()
+    subscription: typeof matchPayload.subscription === 'object' && matchPayload.subscription !== null
+      ? (matchPayload.subscription.type || 'free').toLowerCase()
+      : String(matchPayload.subscription || 'free').toLowerCase(),
+    date: matchPayload.date || new Date().toISOString()
   };
 
+  let localResult = null;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3000);
 
@@ -196,28 +205,45 @@ export const saveScore = async (matchPayload) => {
     if (response.ok) {
       const savedData = await response.json();
       saveToLocalStorage(savedData);
-      return {
+      localResult = {
         success: true,
         data: savedData,
         source: 'server',
         message: '¡Partida registrada en el servidor (db.json)!'
       };
+    } else {
+      throw new Error(`Respuesta del servidor: ${response.status}`);
     }
-    throw new Error(`Respuesta del servidor: ${response.status}`);
   } catch (error) {
     clearTimeout(timeoutId);
     saveToLocalStorage(newScore);
-    return {
+    localResult = {
       success: true,
       data: newScore,
       source: 'local',
       message: 'Partida guardada localmente (inicia "npm run server" para sincronizar db.json)'
     };
   }
+
+  // Despachar al webhook de n8n sin bloquear la aplicación si n8n no está en ejecución
+  try {
+    const n8nResult = await sendGameResultToN8N(newScore);
+    localResult.n8n = n8nResult;
+  } catch (n8nError) {
+    console.warn('Transmisión a n8n no completada (no bloqueante):', n8nError?.message || n8nError);
+    localResult.n8n = {
+      success: false,
+      isOffline: true,
+      error: n8nError?.message
+    };
+  }
+
+  return localResult;
 };
 
 const saveToLocalStorage = (scoreItem) => {
   try {
+    if (typeof localStorage === 'undefined') return;
     const local = localStorage.getItem(LOCAL_STORAGE_SCORES_KEY);
     const list = local ? JSON.parse(local) : [...DEFAULT_SCORES];
     list.unshift(scoreItem);

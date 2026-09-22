@@ -5,7 +5,8 @@ import {
   calculatePointsEarned
 } from '../utils/helpers.js';
 import { login, logout, getCurrentUser, recordUserMatchStats } from '../services/authService.js';
-import { getPlayerScores, getRecords } from '../services/scoreService.js';
+import { getPlayerScores, getRecords, saveScore } from '../services/scoreService.js';
+import { buildN8nPayload, sendGameResultToN8N, DEFAULT_WEBHOOK_URL } from '../services/n8nService.js';
 
 console.log('--- INICIANDO VERIFICACIÓN DE ESCENARIOS POKÉTRIVIA ---');
 
@@ -50,7 +51,7 @@ console.log('✓ Niveles, vidas y generaciones confirmados.');
 
 // 4. Verificación de Autenticación y Validación de Roles
 console.log('4. Verificando inicio de sesión y validación de rol...');
-async function testAuth() {
+async function testAll() {
   // Intento de entrar a Admin con cuenta de jugador
   const invalidAdminAttempt = await login('ash', 'pikachu123', 'ADMIN');
   assert.strictEqual(invalidAdminAttempt.success, false, 'No debe permitir acceso admin a un jugador');
@@ -80,10 +81,90 @@ async function testAuth() {
   assert.strictEqual(oakLogin.user.role, 'ADMIN');
   console.log('✓ Sesión de Administrador iniciada: Profesor Oak (ADMIN).');
 
-  console.log('--- TODAS LAS PRUEBAS DE LÓGICA PASARON EXITOSAMENTE ---');
+  // 5. Verificación de Integración con n8n
+  console.log('5. Verificando integración y estructura de datos con Webhook de n8n...');
+  assert.strictEqual(
+    DEFAULT_WEBHOOK_URL,
+    'http://localhost:5678/webhook/poketrivia/resultados',
+    'La URL predeterminada debe ser http://localhost:5678/webhook/poketrivia/resultados'
+  );
+
+  // Payload de partida para Ash (FREE)
+  const ashMatch = {
+    playerId: ashLogin.user.id,
+    username: ashLogin.user.username,
+    playerName: ashLogin.user.name,
+    difficulty: 'principiante',
+    generation: 1,
+    score: 300,
+    correctAnswers: 3,
+    incorrectAnswers: 1,
+    questionsAnswered: 4,
+    bestStreak: 3,
+    hintsUsed: 1,
+    isNewRecord: true,
+    subscription: ashLogin.user.subscription.type,
+    date: new Date().toISOString()
+  };
+
+  const ashPayload = buildN8nPayload(ashMatch);
+  assert.strictEqual(ashPayload.playerId, 'usr-player');
+  assert.strictEqual(ashPayload.username, 'ash');
+  assert.strictEqual(ashPayload.playerName, 'Ash Ketchum');
+  assert.strictEqual(ashPayload.difficulty, 'principiante');
+  assert.strictEqual(ashPayload.generation, 1);
+  assert.strictEqual(ashPayload.score, 300);
+  assert.strictEqual(ashPayload.correctAnswers, 3);
+  assert.strictEqual(ashPayload.incorrectAnswers, 1);
+  assert.strictEqual(ashPayload.questionsAnswered, 4);
+  assert.strictEqual(ashPayload.bestStreak, 3);
+  assert.strictEqual(ashPayload.hintsUsed, 1);
+  assert.strictEqual(ashPayload.isNewRecord, true);
+  assert.strictEqual(ashPayload.subscription, 'FREE');
+  assert.ok(ashPayload.date, 'Debe incluir fecha');
+  console.log('✓ Payload de Ash verificado con los 13 campos requeridos y datos reales.');
+
+  // Payload de partida para Misty (PREMIUM)
+  const mistyMatch = {
+    playerId: mistyLogin.user.id,
+    username: mistyLogin.user.username,
+    playerName: mistyLogin.user.name,
+    difficulty: 'avanzado',
+    generation: 2,
+    score: 150,
+    correctAnswers: 1,
+    incorrectAnswers: 2,
+    questionsAnswered: 3,
+    bestStreak: 1,
+    hintsUsed: 0,
+    isNewRecord: false,
+    subscription: mistyLogin.user.subscription,
+    date: new Date().toISOString()
+  };
+
+  const mistyPayload = buildN8nPayload(mistyMatch);
+  assert.strictEqual(mistyPayload.playerId, 'usr-player-2');
+  assert.strictEqual(mistyPayload.username, 'misty');
+  assert.strictEqual(mistyPayload.playerName, 'Misty Waterflower');
+  assert.strictEqual(mistyPayload.difficulty, 'avanzado');
+  assert.strictEqual(mistyPayload.generation, 2);
+  assert.strictEqual(mistyPayload.score, 150);
+  assert.strictEqual(mistyPayload.isNewRecord, false);
+  assert.strictEqual(mistyPayload.subscription, 'PREMIUM');
+  console.log('✓ Payload de Misty verificado: aislamiento estricto de cuentas y suscripciones.');
+
+  // Verificación de guardado tolerante a fallos (offline resilience)
+  console.log('6. Verificando que fallos de n8n no bloqueen el guardado local en PokéTrivia...');
+  const testSaveResult = await saveScore(ashMatch);
+  assert.strictEqual(testSaveResult.success, true, 'El guardado de PokéTrivia debe ser exitoso incluso si n8n no responde');
+  assert.ok(testSaveResult.data, 'Debe contener los datos guardados de la partida');
+  assert.strictEqual(testSaveResult.data.score, 300);
+  console.log('✓ Resiliencia comprobada: partida guardada localmente/servidor con éxito independiente de n8n.');
+
+  console.log('--- TODAS LAS PRUEBAS DE LÓGICA Y N8N PASARON EXITOSAMENTE ---');
 }
 
-testAuth().catch((err) => {
+testAll().catch((err) => {
   console.error('Error durante la verificación:', err);
   process.exit(1);
 });
