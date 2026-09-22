@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { getScores, getRecords } from '../services/scoreService';
 import { getN8nWebhookUrl, setN8nWebhookUrl } from '../services/n8nService';
 import {
@@ -11,23 +12,27 @@ import {
   Flame,
   CheckCircle2,
   XCircle,
-  Database
+  Database,
+  User,
+  Gamepad2
 } from 'lucide-react';
 
 export const Results = () => {
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [records, setRecords] = useState({ beginner: 0, advanced: 0, master: 0 });
+  const { user, isAuthenticated } = useAuth();
+  const [allScores, setAllScores] = useState([]);
+  const [globalRecords, setGlobalRecords] = useState({ beginner: 0, advanced: 0, master: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [storageSource, setStorageSource] = useState('server');
   const [webhookUrl, setWebhookUrl] = useState(getN8nWebhookUrl());
   const [showConfig, setShowConfig] = useState(false);
+  const [viewMode, setViewMode] = useState('my'); // 'my' | 'all'
 
   useEffect(() => {
     setIsLoading(true);
     Promise.all([getScores(), getRecords()]).then(([scoresRes, recs]) => {
-      setLeaderboard(scoresRes.scores || []);
+      setAllScores(scoresRes.scores || []);
       setStorageSource(scoresRes.source || 'server');
-      setRecords(recs);
+      setGlobalRecords(recs);
       setIsLoading(false);
     });
   }, []);
@@ -38,20 +43,70 @@ export const Results = () => {
     setShowConfig(false);
   };
 
+  // Récords a mostrar: si está en modo personal, los del usuario activo
+  const displayedRecords = useMemo(() => {
+    if (viewMode === 'my' && user?.records) {
+      return user.records;
+    }
+    return globalRecords;
+  }, [viewMode, user?.records, globalRecords]);
+
+  // Historial filtrado
+  const displayedScores = useMemo(() => {
+    if (viewMode === 'my' && user?.id) {
+      return allScores.filter(
+        (s) => s.playerId === user.id || s.playerName === user.name
+      );
+    }
+    return allScores;
+  }, [viewMode, allScores, user?.id, user?.name]);
+
   return (
     <div className="page-container page-results">
       <div className="instructions-hero">
         <div className="hero-badge">
-          <Trophy size={16} className="icon-gold" />
-          <span>Salón de la Fama</span>
+          <Award size={16} className="icon-gold" />
+          <span>Historial de Partidas y Récords</span>
         </div>
         <h1 className="hero-title">
-          Récords de <span className="gradient-text">Supervivencia</span>
+          {viewMode === 'my' && user ? (
+            <>
+              Historial de <span className="gradient-text">{user.name || user.username}</span>
+            </>
+          ) : (
+            <>
+              Récords de <span className="gradient-text">Supervivencia</span>
+            </>
+          )}
         </h1>
         <p className="hero-subtitle">
-          Récords independientes por dificultad e histórico de partidas de todos los entrenadores.
+          {viewMode === 'my' && user
+            ? 'Consulta tus marcas máximas y el histórico de tus partidas finalizadas en esta cuenta.'
+            : 'Récords independientes por dificultad e histórico general de partidas de la arena.'}
         </p>
       </div>
+
+      {/* Selector de Vista: Mis Partidas vs Todas */}
+      {isAuthenticated && (
+        <div className="leaderboard-filter-tabs mb-2">
+          <button
+            type="button"
+            className={`tab-btn-leaderboard ${viewMode === 'my' ? 'active' : ''}`}
+            onClick={() => setViewMode('my')}
+          >
+            <User size={16} />
+            <span>Mi Historial ({user?.name || user?.username})</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn-leaderboard ${viewMode === 'all' ? 'active' : ''}`}
+            onClick={() => setViewMode('all')}
+          >
+            <Globe size={16} />
+            <span>Historial Global</span>
+          </button>
+        </div>
+      )}
 
       {/* Récords Independientes por Dificultad */}
       <div className="admin-stats-grid">
@@ -61,7 +116,7 @@ export const Results = () => {
           </div>
           <div>
             <span className="admin-stat-label">Principiante (Gen 1)</span>
-            <span className="admin-stat-val">{records.beginner} pts</span>
+            <span className="admin-stat-val">{displayedRecords.beginner || 0} pts</span>
             <span className="admin-stat-trend">❤️ 5 vidas iniciales</span>
           </div>
         </div>
@@ -72,7 +127,7 @@ export const Results = () => {
           </div>
           <div>
             <span className="admin-stat-label">Avanzado (Gen 2)</span>
-            <span className="admin-stat-val">{records.advanced} pts</span>
+            <span className="admin-stat-val">{displayedRecords.advanced || 0} pts</span>
             <span className="admin-stat-trend">❤️ 4 vidas iniciales</span>
           </div>
         </div>
@@ -83,7 +138,7 @@ export const Results = () => {
           </div>
           <div>
             <span className="admin-stat-label">Maestro (Gen 3)</span>
-            <span className="admin-stat-val">{records.master} pts</span>
+            <span className="admin-stat-val">{displayedRecords.master || 0} pts</span>
             <span className="admin-stat-trend">❤️ 3 vidas iniciales</span>
           </div>
         </div>
@@ -125,8 +180,7 @@ export const Results = () => {
         )}
 
         <p className="n8n-subtext">
-          Al concluir cada partida de supervivencia, los datos completos se envían a <code>{webhookUrl}</code>.
-          Importa <code>n8n/workflow.json</code> en n8n para activar el flujo de evaluación.
+          Al concluir cada partida de supervivencia, los datos del jugador activo se envían a <code>{webhookUrl}</code>.
         </p>
       </div>
 
@@ -135,13 +189,15 @@ export const Results = () => {
         <div className="leaderboard-header">
           <div className="title-with-icon">
             <Award size={24} className="icon-trophy" />
-            <h2 className="section-title">Historial de Partidas Guardadas</h2>
+            <h2 className="section-title">
+              {viewMode === 'my' ? 'Tus Partidas de Supervivencia' : 'Historial de Partidas Guardadas'}
+            </h2>
           </div>
 
           <div className="source-indicator">
             <Database size={16} />
             <span>
-              Origen: {storageSource === 'server' ? 'Servidor db.json (json-server)' : 'Almacenamiento Local'}
+              Origen: {storageSource === 'server' ? 'Servidor db.json' : 'Almacenamiento Local'}
             </span>
           </div>
         </div>
@@ -151,11 +207,15 @@ export const Results = () => {
             <span className="spinner-mini"></span>
             <span>Cargando partidas...</span>
           </div>
-        ) : leaderboard.length === 0 ? (
+        ) : displayedScores.length === 0 ? (
           <div className="empty-scores">
-            <p>Aún no hay partidas registradas.</p>
+            <p>
+              {viewMode === 'my'
+                ? 'Aún no has finalizado partidas de supervivencia con esta cuenta. ¡Inicia una partida para sumar tus puntos!'
+                : 'Aún no hay partidas registradas en el sistema.'}
+            </p>
             <Link to="/jugador" className="btn btn-primary btn-sm">
-              Iniciar Primera Partida
+              Iniciar Supervivencia
             </Link>
           </div>
         ) : (
@@ -169,26 +229,38 @@ export const Results = () => {
                   <th>Puntos</th>
                   <th>Racha</th>
                   <th>Preguntas</th>
+                  <th>Aciertos</th>
                   <th>Pistas</th>
                   <th>Récord</th>
                   <th>Fecha</th>
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.map((item, index) => (
+                {displayedScores.map((item, index) => (
                   <tr key={item.id} className={index === 0 ? 'top-row' : ''}>
                     <td className="rank-cell">
                       {index === 0 ? '🥇 1' : index === 1 ? '🥈 2' : index === 2 ? '🥉 3' : `${index + 1}`}
                     </td>
-                    <td className="trainer-name">{item.playerName}</td>
+                    <td className="trainer-name">
+                      <span className="trainer-avatar-mini-initial">
+                        {item.playerName ? item.playerName.charAt(0) : 'E'}
+                      </span>
+                      <strong>{item.playerName}</strong>
+                    </td>
                     <td>
-                      <span className={`level-pill pill-${item.difficulty}`}>
-                        {item.difficulty}
+                      <span className={`level-pill pill-${item.difficulty || item.level}`}>
+                        {item.difficulty || item.level}
                       </span>
                     </td>
                     <td className="score-cell">{item.score} pts</td>
-                    <td>{item.bestStreak || 0}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-1">
+                        <Flame size={13} className="text-warning" />
+                        {item.bestStreak || 0}
+                      </span>
+                    </td>
                     <td>{item.questionsAnswered || item.correctAnswers || 0}</td>
+                    <td className="text-success font-bold">{item.correctAnswers || 0}</td>
                     <td>{item.hintsUsed || 0}</td>
                     <td>
                       {item.isNewRecord ? (
@@ -210,10 +282,11 @@ export const Results = () => {
 
       <div className="result-actions mt-4 text-center">
         <Link to="/jugador" className="btn btn-primary btn-lg">
-          <RotateCcw size={18} />
+          <Gamepad2 size={18} />
           <span>Volver al Panel de Juego</span>
         </Link>
       </div>
     </div>
   );
 };
+

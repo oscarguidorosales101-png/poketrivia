@@ -105,6 +105,22 @@
       "remainingLives": 4,
       "isNewRecord": false,
       "date": "2026-09-21T19:42:25.876Z"
+    },
+    {
+      "id": "1790087200750",
+      "playerId": "usr-player-2",
+      "playerName": "Misty Waterflower",
+      "difficulty": "principiante",
+      "generation": 1,
+      "score": 0,
+      "questionsAnswered": 1,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "bestStreak": 0,
+      "hintsUsed": 0,
+      "remainingLives": 5,
+      "isNewRecord": false,
+      "date": "2026-09-22T14:26:40.750Z"
     }
   ],
   "users": [
@@ -131,6 +147,11 @@
         "status": "active",
         "plan": "Plan Gratuito",
         "hintsBonus": 0
+      },
+      "records": {
+        "beginner": 400,
+        "advanced": 0,
+        "master": 0
       }
     },
     {
@@ -158,6 +179,11 @@
         "durationMonths": 2,
         "hintsBonus": 50,
         "expiresAt": "2026-11-21T00:00:00.000Z"
+      },
+      "records": {
+        "beginner": 500,
+        "advanced": 450,
+        "master": 500
       }
     },
     {
@@ -169,14 +195,14 @@
       "avatar": null,
       "hints": 15,
       "totalScore": 2150,
-      "matchesPlayed": 9,
-      "matchesFinished": 9,
-      "questionsAnswered": 44,
+      "matchesPlayed": 10,
+      "matchesFinished": 10,
+      "questionsAnswered": 45,
       "correctAnswers": 36,
       "incorrectAnswers": 8,
       "bestStreak": 9,
       "hintsUsed": 6,
-      "favoriteDifficulty": "avanzado",
+      "favoriteDifficulty": "principiante",
       "createdAt": "2026-09-05T15:20:00.000Z",
       "subscription": {
         "type": "PREMIUM",
@@ -185,6 +211,11 @@
         "durationMonths": 1,
         "hintsBonus": 20,
         "expiresAt": "2026-10-21T00:00:00.000Z"
+      },
+      "records": {
+        "beginner": 300,
+        "advanced": 380,
+        "master": 0
       }
     }
   ],

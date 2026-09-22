@@ -34,11 +34,13 @@ export const Profile = () => {
 
   const sub = user?.subscription || { type: 'FREE', status: 'active', plan: 'Plan Gratuito' };
 
+  // Sincronizar avatar con el usuario activo
   useEffect(() => {
-    getRecords().then((recs) => {
-      setRecords(recs);
-    });
-  }, []);
+    setAvatarSrc(user?.avatar || null);
+  }, [user?.avatar]);
+
+  // Récords exclusivos del usuario activo
+  const userRecords = user?.records || { beginner: 0, advanced: 0, master: 0 };
 
   // Manejador de subida de imagen de perfil local
   const handleAvatarFileChange = (e) => {
@@ -72,9 +74,10 @@ export const Profile = () => {
     navigate('/');
   };
 
-  // Cálculo de estadísticas
+  // Cálculo de estadísticas exclusivas del usuario
   const totalQuestions = Number(user?.questionsAnswered) || 0;
   const correctCount = Number(user?.correctAnswers) || 0;
+  const incorrectCount = Number(user?.incorrectAnswers) || 0;
   const accuracy = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '100.0';
 
   return (
@@ -129,7 +132,7 @@ export const Profile = () => {
           </div>
         </div>
 
-        {/* Bloque 1: Estadísticas Acumuladas del Jugador */}
+        {/* Bloque 1: Estadísticas Acumuladas del Jugador Activo */}
         <div className="profile-section">
           <div className="section-title-wrapper">
             <Trophy size={20} className="icon-gold" />
@@ -142,7 +145,7 @@ export const Profile = () => {
                 <Sparkles size={14} className="icon-gold" /> Puntos Totales
               </span>
               <span className="stat-box-value gold">{user?.totalScore || 0} pts</span>
-              <span className="stat-box-sub">Acumulado en partidas</span>
+              <span className="stat-box-sub">Acumulado en tus partidas</span>
             </div>
 
             <div className="profile-stat-box">
@@ -150,7 +153,15 @@ export const Profile = () => {
                 <Gamepad2 size={14} className="icon-blue" /> Partidas Jugadas
               </span>
               <span className="stat-box-value blue">{user?.matchesPlayed || 0}</span>
-              <span className="stat-box-sub">Supervivencias finalizadas</span>
+              <span className="stat-box-sub">Supervivencias iniciadas</span>
+            </div>
+
+            <div className="profile-stat-box">
+              <span className="stat-box-label">
+                <CheckCircle2 size={14} className="icon-green" /> Partidas Finalizadas
+              </span>
+              <span className="stat-box-value green">{user?.matchesFinished ?? user?.matchesPlayed ?? 0}</span>
+              <span className="stat-box-sub">Concluidas con éxito</span>
             </div>
 
             <div className="profile-stat-box">
@@ -158,17 +169,25 @@ export const Profile = () => {
                 <Flame size={14} className="icon-flame" /> Mejor Racha
               </span>
               <span className="stat-box-value">{user?.bestStreak || 0} seguidas</span>
-              <span className="stat-box-sub">Máximo multiplicador</span>
+              <span className="stat-box-sub">Multiplicador máximo</span>
             </div>
 
             <div className="profile-stat-box">
               <span className="stat-box-label">
-                <Target size={14} className="icon-green" /> Precisión Global
+                <Target size={14} /> Preguntas Respondidas
               </span>
-              <span className="stat-box-value green">{accuracy}%</span>
-              <span className="stat-box-sub">
-                {correctCount} correctas / {totalQuestions} preguntas
+              <span className="stat-box-value">{totalQuestions}</span>
+              <span className="stat-box-sub">Total acumulado</span>
+            </div>
+
+            <div className="profile-stat-box">
+              <span className="stat-box-label">
+                <CheckCircle2 size={14} className="text-success" /> Correctas / Incorrectas
               </span>
+              <span className="stat-box-value text-success">
+                {correctCount} <span className="text-muted text-sm">/</span> <span className="text-error">{incorrectCount}</span>
+              </span>
+              <span className="stat-box-sub">Precisión del {accuracy}%</span>
             </div>
 
             <div className="profile-stat-box">
@@ -189,29 +208,29 @@ export const Profile = () => {
           </div>
         </div>
 
-        {/* Bloque 2: Récords Independientes por Dificultad */}
+        {/* Bloque 2: Récords Personales por Dificultad */}
         <div className="profile-section">
           <div className="section-title-wrapper">
             <Trophy size={20} />
-            <h2 className="profile-section-title">Récords por Dificultad</h2>
+            <h2 className="profile-section-title">Tus Récords por Dificultad</h2>
           </div>
 
           <div className="profile-stats-cards-grid">
             <div className="profile-stat-box">
               <span className="stat-box-label text-success">Principiante (Gen 1)</span>
-              <span className="stat-box-value">{records.beginner} pts</span>
+              <span className="stat-box-value">{userRecords.beginner || 0} pts</span>
               <span className="stat-box-sub">5 vidas iniciales</span>
             </div>
 
             <div className="profile-stat-box">
               <span className="stat-box-label text-warning">Avanzado (Gen 2)</span>
-              <span className="stat-box-value">{records.advanced} pts</span>
+              <span className="stat-box-value">{userRecords.advanced || 0} pts</span>
               <span className="stat-box-sub">4 vidas iniciales</span>
             </div>
 
             <div className="profile-stat-box">
               <span className="stat-box-label text-error">Maestro (Gen 3)</span>
-              <span className="stat-box-value">{records.master} pts</span>
+              <span className="stat-box-value">{userRecords.master || 0} pts</span>
               <span className="stat-box-sub">3 vidas iniciales</span>
             </div>
           </div>

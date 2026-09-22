@@ -154,13 +154,12 @@ export const Leaderboard = () => {
               <thead>
                 <tr>
                   <th>Posición</th>
-                  <th>Entrenador</th>
+                  <th>Imagen</th>
+                  <th>Jugador</th>
+                  <th>Puntuación</th>
                   <th>Dificultad</th>
-                  <th>Puntos</th>
                   <th>Mejor Racha</th>
-                  <th>Preguntas</th>
-                  <th>Aciertos</th>
-                  <th>Fecha</th>
+                  <th>Partidas</th>
                 </tr>
               </thead>
               <tbody>
@@ -179,32 +178,32 @@ export const Leaderboard = () => {
                           <span>#{index + 1}</span>
                         )}
                       </td>
+                      <td className="text-center">
+                        {item.playerAvatar ? (
+                          <img src={item.playerAvatar} alt={item.playerName} className="trainer-avatar-mini" />
+                        ) : (
+                          <span className="trainer-avatar-mini-initial">
+                            {item.playerName ? item.playerName.charAt(0) : 'E'}
+                          </span>
+                        )}
+                      </td>
                       <td className="trainer-name">
-                        <span className="trainer-avatar-mini-initial">
-                          {item.playerName ? item.playerName.charAt(0) : 'E'}
-                        </span>
                         <strong>{item.playerName}</strong>
                         {isDemo && <span className="demo-data-badge">Ejemplo</span>}
                       </td>
+                      <td className="score-cell font-bold">{item.score} pts</td>
                       <td>
                         <span className={`level-pill pill-${item.difficulty || item.level || 'principiante'}`}>
                           {item.difficulty || item.level} (Gen {item.generation || 1})
                         </span>
                       </td>
-                      <td className="score-cell">{item.score} pts</td>
                       <td>
                         <span className="inline-flex items-center gap-1">
                           <Flame size={13} className="text-warning" />
                           {item.bestStreak || 0}
                         </span>
                       </td>
-                      <td>{item.questionsAnswered || item.correctAnswers || 0}</td>
-                      <td className="text-success font-bold">
-                        {item.correctAnswers ?? 0}
-                      </td>
-                      <td className="date-cell">
-                        {item.date ? new Date(item.date).toLocaleDateString() : 'Reciente'}
-                      </td>
+                      <td>{item.questionsAnswered || item.correctAnswers || 1} respondidas</td>
                     </tr>
                   );
                 })}

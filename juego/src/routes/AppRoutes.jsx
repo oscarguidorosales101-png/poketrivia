@@ -10,6 +10,7 @@ import { Results } from '../pages/Results';
 import { Instructions } from '../pages/Instructions';
 import { Profile } from '../pages/Profile';
 import { Leaderboard } from '../pages/Leaderboard';
+import { Unauthorized401 } from '../pages/Unauthorized401';
 import { Forbidden403 } from '../pages/Forbidden403';
 import { NotFound404 } from '../pages/NotFound404';
 
@@ -34,11 +35,11 @@ export const AppRoutes = () => {
       {/* 1. Ruta Pública de Inicio / Login */}
       <Route path="/" element={<Home />} />
 
-      {/* 2. Rutas del Jugador (Protegidas: requiere autenticación) */}
+      {/* 2. Rutas del Jugador (Protegidas: requiere autenticación y rol PLAYER) */}
       <Route
         path="/jugador"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="PLAYER">
             <PlayerDashboard />
           </ProtectedRoute>
         }
@@ -47,7 +48,7 @@ export const AppRoutes = () => {
       <Route
         path="/juego/:nivel"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="PLAYER">
             <Game />
           </ProtectedRoute>
         }
@@ -56,7 +57,7 @@ export const AppRoutes = () => {
       <Route
         path="/perfil"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="PLAYER">
             <Profile />
           </ProtectedRoute>
         }
@@ -88,6 +89,7 @@ export const AppRoutes = () => {
       </Route>
 
       {/* 5. Códigos de Error HTTP Visuales */}
+      <Route path="/401" element={<Unauthorized401 />} />
       <Route path="/403" element={<Forbidden403 />} />
       <Route path="*" element={<NotFound404 />} />
     </Routes>

@@ -30,12 +30,20 @@ export const PlayerDashboard = () => {
     const loadDashboardData = async () => {
       setIsLoading(true);
       const [highRecords, matchScores] = await Promise.all([getRecords(), getScores()]);
-      setRecords(highRecords);
-      setRecentMatches(matchScores.scores?.slice(0, 5) || []);
+      const activeUserRecords = user?.records || highRecords;
+      setRecords(activeUserRecords);
+
+      // Filtrar únicamente las partidas pertenecientes al usuario activo
+      const userMatches = (matchScores.scores || []).filter(
+        (m) => m.playerId === user?.id || m.playerName === user?.name
+      );
+      setRecentMatches(userMatches.slice(0, 5));
       setIsLoading(false);
     };
-    loadDashboardData();
-  }, []);
+    if (user?.id) {
+      loadDashboardData();
+    }
+  }, [user?.id, user?.records, user?.name]);
 
   const handleStartGame = () => {
     navigate(`/juego/${selectedDifficulty}`);

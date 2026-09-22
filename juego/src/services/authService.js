@@ -12,11 +12,11 @@ const DEFAULT_USERS = [
     avatar: null,
     hints: 5,
     totalScore: 1200,
-    matchesPlayed: 6,
-    matchesFinished: 6,
-    questionsAnswered: 28,
+    matchesPlayed: 7,
+    matchesFinished: 7,
+    questionsAnswered: 29,
     correctAnswers: 22,
-    incorrectAnswers: 6,
+    incorrectAnswers: 7,
     bestStreak: 7,
     hintsUsed: 4,
     favoriteDifficulty: 'principiante',
@@ -26,6 +26,11 @@ const DEFAULT_USERS = [
       status: 'active',
       plan: 'Plan Gratuito',
       hintsBonus: 0
+    },
+    records: {
+      beginner: 400,
+      advanced: 0,
+      master: 0
     }
   },
   {
@@ -53,6 +58,11 @@ const DEFAULT_USERS = [
       durationMonths: 2,
       hintsBonus: 50,
       expiresAt: '2026-11-21T00:00:00.000Z'
+    },
+    records: {
+      beginner: 500,
+      advanced: 450,
+      master: 500
     }
   },
   {
@@ -80,6 +90,11 @@ const DEFAULT_USERS = [
       durationMonths: 1,
       hintsBonus: 20,
       expiresAt: '2026-10-21T00:00:00.000Z'
+    },
+    records: {
+      beginner: 300,
+      advanced: 380,
+      master: 0
     }
   }
 ];
@@ -87,7 +102,7 @@ const DEFAULT_USERS = [
 /**
  * Autentica un usuario verificando credenciales reales contra el servidor o datos locales
  */
-export const login = async (username, password) => {
+export const login = async (username, password, selectedRole = null) => {
   const cleanUsername = username?.trim().toLowerCase();
   const cleanPassword = password?.trim();
 
@@ -119,11 +134,28 @@ export const login = async (username, password) => {
     };
   }
 
+  // Validación estricta de rol seleccionado
+  if (selectedRole && selectedRole.toUpperCase() === 'ADMIN' && foundUser.role !== 'ADMIN') {
+    return {
+      success: false,
+      error: 'Esta cuenta no posee privilegios de Administrador. Por favor ingresa como Jugador.'
+    };
+  }
+
   // Ocultar contraseña antes de almacenar en sesión
   const { password: _, ...safeUser } = foundUser;
 
+  // Garantizar objeto de récords personales
+  if (!safeUser.records) {
+    safeUser.records = { beginner: 0, advanced: 0, master: 0 };
+  }
+
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(safeUser));
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('poketrivia_auth_change', { detail: safeUser }));
   }
 
   return {
@@ -138,6 +170,9 @@ export const login = async (username, password) => {
 export const logout = () => {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('poketrivia_auth_change', { detail: null }));
   }
 };
 
@@ -167,6 +202,9 @@ export const updateUserProfile = async (userId, updates) => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('poketrivia_auth_change', { detail: updatedUser }));
+    }
   }
 
   try {
@@ -195,8 +233,24 @@ export const recordUserMatchStats = async (userId, matchStats) => {
   const currentStreak = Number(currentUser.bestStreak) || 0;
   const currentHints = Number(currentUser.hintsUsed) || 0;
 
+  // Actualizar récords personales de este usuario por dificultad
+  const currentRecords = currentUser.records || { beginner: 0, advanced: 0, master: 0 };
+  let recordKey = 'beginner';
+  const diff = (matchStats.difficulty || '').toLowerCase();
+  if (diff === 'avanzado' || diff === 'medio' || diff === 'advanced') {
+    recordKey = 'advanced';
+  } else if (diff === 'maestro' || diff === 'dificil' || diff === 'master') {
+    recordKey = 'master';
+  }
+
+  const matchScore = Number(matchStats.score) || 0;
+  const updatedRecords = {
+    ...currentRecords,
+    [recordKey]: Math.max(Number(currentRecords[recordKey]) || 0, matchScore)
+  };
+
   const updates = {
-    totalScore: currentTotal + (Number(matchStats.score) || 0),
+    totalScore: currentTotal + matchScore,
     matchesPlayed: currentMatches + 1,
     matchesFinished: currentMatches + 1,
     questionsAnswered: currentQA + (Number(matchStats.questionsAnswered) || 0),
@@ -204,7 +258,8 @@ export const recordUserMatchStats = async (userId, matchStats) => {
     incorrectAnswers: currentIA + (Number(matchStats.incorrectAnswers) || 0),
     bestStreak: Math.max(currentStreak, Number(matchStats.bestStreak) || 0),
     hintsUsed: currentHints + (Number(matchStats.hintsUsed) || 0),
-    favoriteDifficulty: matchStats.difficulty || currentUser.favoriteDifficulty || 'principiante'
+    favoriteDifficulty: matchStats.difficulty || currentUser.favoriteDifficulty || 'principiante',
+    records: updatedRecords
   };
 
   return updateUserProfile(userId, updates);

@@ -13,7 +13,7 @@ const DEFAULT_RECORDS = {
 const DEFAULT_SCORES = [
   {
     id: '1',
-    playerId: 'usr-player',
+    playerId: 'usr-demo-red',
     playerName: 'Red',
     difficulty: 'maestro',
     generation: 3,
@@ -29,7 +29,7 @@ const DEFAULT_SCORES = [
   },
   {
     id: '2',
-    playerId: 'usr-player',
+    playerId: 'usr-demo-blue',
     playerName: 'Blue',
     difficulty: 'avanzado',
     generation: 2,
@@ -45,8 +45,8 @@ const DEFAULT_SCORES = [
   },
   {
     id: '3',
-    playerId: 'usr-player',
-    playerName: 'Misty',
+    playerId: 'usr-player-2',
+    playerName: 'Misty Waterflower',
     difficulty: 'principiante',
     generation: 1,
     score: 300,
@@ -147,6 +147,17 @@ export const getScores = async () => {
       return { scores: DEFAULT_SCORES, source: 'default' };
     }
   }
+};
+
+/**
+ * Obtiene el historial de partidas exclusivamente para un jugador específico
+ */
+export const getPlayerScores = async (playerId) => {
+  if (!playerId) return [];
+  const res = await getScores();
+  return (res.scores || []).filter(
+    (s) => s.playerId === playerId || s.userId === playerId
+  );
 };
 
 /**

@@ -69,12 +69,17 @@ export const Game = () => {
   const currentQuestion = questions[currentQuestionIndex] || null;
   const currentQuestionNumber = currentQuestionIndex + 1;
 
-  // Cargar el récord actual de esta dificultad
+  // Cargar el récord actual de esta dificultad para este usuario
   useEffect(() => {
-    getRecords().then((rec) => {
-      setDifficultyHighScore(Number(rec[currentLevelConfig.recordKey]) || 0);
-    });
-  }, [currentLevelConfig.recordKey]);
+    const personal = user?.records?.[currentLevelConfig.recordKey];
+    if (personal !== undefined && personal !== null) {
+      setDifficultyHighScore(Number(personal) || 0);
+    } else {
+      getRecords().then((rec) => {
+        setDifficultyHighScore(Number(rec[currentLevelConfig.recordKey]) || 0);
+      });
+    }
+  }, [currentLevelConfig.recordKey, user?.records]);
 
   // ==========================================
   // MANEJO DE TIEMPO AGOTADO
@@ -164,16 +169,21 @@ export const Game = () => {
     hasEndedRef.current = true;
     stopTimer();
 
-    // 1. Comprobar y actualizar récord independiente
+    // 1. Comprobar y actualizar récord independiente del jugador y global
+    const personalRecord = Number(user?.records?.[currentLevelConfig.recordKey]) || 0;
+    const isNewPersonalRecord = score > personalRecord;
     const recordResult = await checkAndUpdateRecord(currentLevelConfig.recordKey, score);
-    setIsNewRecordAchieved(recordResult.isNewRecord);
-    setDifficultyHighScore(recordResult.currentHigh);
+    const achievedNewRecord = isNewPersonalRecord || recordResult.isNewRecord;
+
+    setIsNewRecordAchieved(achievedNewRecord);
+    setDifficultyHighScore(Math.max(personalRecord, score));
 
     // 2. Guardar en db.json mediante POST
     const matchPayload = {
       playerId: user?.id || 'usr-player',
       playerName: user?.name || user?.username || 'Entrenador',
       difficulty: levelKey,
+      difficultyKey: currentLevelConfig.recordKey,
       generation: currentLevelConfig.generation,
       score,
       questionsAnswered: currentQuestionNumber,
@@ -182,7 +192,7 @@ export const Game = () => {
       bestStreak,
       hintsUsed: totalHintsUsedInMatch,
       remainingLives: 0,
-      isNewRecord: recordResult.isNewRecord,
+      isNewRecord: achievedNewRecord,
       date: new Date().toISOString()
     };
 
